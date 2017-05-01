@@ -9,8 +9,8 @@ let languageStrings = {
     'en-US': {
         'translation': {
             'SKILL_NAME': 'Hot Mess',
-            'WELCOME_MESSAGE' : "Hot Mess is you're guide to local gay nightlife.",
-            'WELCOME_REPROMPT': '',
+            'WELCOME_MESSAGE' : "Hot Mess is you're guide to local gay nightlife.  You can ask me whats going on and I'll find the next few events for you.",
+            'WELCOME_REPROMPT': 'What can I look up?',
             'LOCATION_CONSENT': "In order to get events Hot Mess needs to know what city you live in.  Grant access to you're location in the Alexa app."
         }
     }
@@ -48,7 +48,8 @@ function handleEventRequest(zip, timespan) {
                     return `at ${start_at.toLocaleTimeString()}, ${item['title']} at ${item['venue']}`;
                 });
 
-                alexaThis.emit(':tell', `The next ${plural} in ${response.body['locale']} ${ordinal}: ${toSentence(statements)}.`);
+                alexaThis.emit(':tellWithCard',
+                    `The next ${plural} in ${response.body['locale']} ${ordinal}: ${toSentence(statements)}.`);
             }
     });
 }
