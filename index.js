@@ -1,18 +1,97 @@
 'use strict';
 
-var Alexa = require('alexa-sdk');
-var APP_ID = 'amzn1.ask.skill.3e6cdd1f-d05a-450d-b878-79335010dafa';
+let humanize = require('humanize');
+let Alexa = require('alexa-sdk');
+let unirest = require('unirest');
+let APP_ID = 'amzn1.ask.skill.3e6cdd1f-d05a-450d-b878-79335010dafa';
+
+let languageStrings = {
+    'en-US': {
+        'translation': {
+            'SKILL_NAME': 'Hot Mess',
+            'WELCOME_MESSAGE' : "Hot Mess is you're guide to local gay nightlife.",
+            'WELCOME_REPROMPT': '',
+            'LOCATION_CONSENT': "In order to get events Hot Mess needs to know what city you live in.  Grant access to you're location in the Alexa app."
+        }
+    }
+};
 
 exports.handler = function(event, context, callback) {
-    var alexa = Alexa.handler(event, context);
+    let alexa = Alexa.handler(event, context);
     alexa.APP_ID = APP_ID;
     // To enable string internationalization (i18n) features, set a resources object.
-    //alexa.resources = languageStrings;
+    alexa.resources = languageStrings;
     alexa.registerHandlers(handlers);
     alexa.execute();
 };
 
-var handlers = {
+function toSentence(array) {
+    return array.slice(0, array.length - 1).join(', ') + ", and " + array.slice(-1);
+}
+
+function handleEventRequest(zip, timespan) {
+    let alexaThis = this;
+
+    unirest.get('https://api.hotmess.social/alexa?zip=98102')
+        .headers({ 'Accept': 'application/javascript' })
+        .end(function(response) {
+            if (response.body['events'].length === 0) {
+                alexaThis.emit(':tell', `There are no events in ${response.body['locale']}`);
+            }
+            else {
+                let plural = response.body['events'].length === 1 ? 'event' : 'events';
+                let ordinal = response.body['events'].length === 1 ? 'is' : 'are';
+
+                let statements = response.body['events'].map(function(item) {
+                    let start_at = new Date(item['start_at']);
+
+                    return `at ${start_at.toLocaleTimeString()}, ${item['title']} at ${item['venue']}`;
+                });
+
+                alexaThis.emit(':tell', `The next ${plural} in ${response.body['locale']} ${ordinal}: ${toSentence(statements)}.`);
+            }
+    });
+}
+
+function withZipCode(callback) {
+    let alexaThis = this;
+
+    console.log('Lambda Context', this.context);
+    console.log('Event Context', this.event.context);
+
+    if (this.event.context
+        && this.event.context.System
+        && this.event.context.System.device
+        && this.event.context.System.device.deviceId
+        && this.event.context.System.user
+        && this.event.context.System.user.permissions
+        && this.event.context.System.user.permissions.consentToken) {
+
+        let consentToken = this.event.context.System.user.permissions.consentToken;
+        let deviceId = this.event.context.System.device.deviceId;
+
+        unirest.get(`https://api.amazonalexa.com/v1/devices/${deviceId}/settings/address/countryAndPostalCode`)
+            .headers({ 'Authorization': `Bearer ${consentToken}`, 'Accept': 'application/json' })
+            .end(function(response) {
+
+                if (response.code === 403) {
+                    alexaThis.emit(':tellWithPermissionCard', alexaThis.t('LOCATION_CONSENT'), [ 'read::alexa:device:all:address:country_and_postal_code' ])
+                }
+                else if (response.code === 200) {
+                    callback.call(alexaThis, response.body['postalCode']);
+                }
+            });
+    }
+    else {
+        alexaThis.emit(':tellWithPermissionCard', alexaThis.t("LOCATION_CONSENT"), [ 'read::alexa:device:all:address:country_and_postal_code' ])
+    }
+}
+
+function parseTime() {
+    return null;
+}
+
+let handlers = {
     //Use LaunchRequest, instead of NewSession if you want to use the one-shot model
     // Alexa, ask [my-skill-invocation-name] to (do something)...
     'LaunchRequest': function () {
@@ -23,28 +102,14 @@ var handlers = {
         this.emit(':ask', this.attributes['speechOutput'], this.attributes['repromptSpeech'])
     },
     'GetEvents': function() {
-      let https = require('https');
-
-      let alexaThis = this;
-
-      https.get({
-        host: 'api.hotmess.social',
-        path: '/alexa',
-        port : 443
-      }, function(response) {
-        // Continuously update stream with data
-        var body = '';
-        response.on('data', function(d) {
-            body += d;
-        });
-        response.on('end', function() {
-            alexaThis.emit(':tell', body);
-        });
-        response.on('error', function(error) {
-          alexaThis.emit(':tell', error);
+        withZipCode.call(this, function(zip) {
+            handleEventRequest.call(this, zip, null);
         })
-      });
+    },
+    'GetEventsWithTime': function() {
+        withZipCode.call(this, function(zip) {
+            handleEventRequest.call(this, zip, parseTime());
+        })
     }
   };
 
-var languageStrings = {};

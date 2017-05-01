@@ -9,9 +9,13 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "alexa-sdk": "^1.0.8"
+    "alexa-sdk": "^1.0.8",
+    "humanize": "0.0.9",
+    "unirest": "^0.5.1"
   },
   "devDependencies": {
+    "grunt": "^1.0.1",
+    "grunt-aws-lambda": "^0.13.0",
     "mocha": "^3.3.0"
   }
 }
