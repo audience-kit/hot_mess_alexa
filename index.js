@@ -11,7 +11,8 @@ let languageStrings = {
             'SKILL_NAME': 'Hot Mess',
             'WELCOME_MESSAGE' : "Hot Mess is you're guide to local gay nightlife.  You can ask me whats going on and I'll find the next few events for you.",
             'WELCOME_REPROMPT': 'What can I look up?',
-            'LOCATION_CONSENT': "In order to get events Hot Mess needs to know what city you live in.  Grant access to you're location in the Alexa app."
+            'LOCATION_CONSENT': "In order to get events Hot Mess needs to know what city you live in.  Grant access to you're location in the Alexa app.",
+            'HELP_MESSAGE': "Ask me what's going on and I'll look up the next few events near you."
         }
     }
 };
@@ -48,8 +49,8 @@ function handleEventRequest(zip, timespan) {
                     return `at ${start_at.toLocaleTimeString()}, ${item['title']} at ${item['venue']}`;
                 });
 
-                alexaThis.emit(':tellWithCard',
-                    `The next ${plural} in ${response.body['locale']} ${ordinal}: ${toSentence(statements)}.`);
+                let output = `The next ${plural} in ${response.body['locale']} ${ordinal}: ${toSentence(statements)}.`;
+                alexaThis.emit(':tell', output);
             }
     });
 }
@@ -111,6 +112,9 @@ let handlers = {
         withZipCode.call(this, function(zip) {
             handleEventRequest.call(this, zip, parseTime());
         })
+    },
+    'GetHelp': function() {
+        this.emit(':tell', this.t("HELP_MESSAGE"));
     }
   };
 
