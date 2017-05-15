@@ -32,9 +32,13 @@ function toSentence(array) {
 
 function handleEventRequest(zip, timespan) {
     let alexaThis = this;
+    let deviceId = this.event.context.System.device.deviceId;
+    let userId = this.event.context.System.user.userId;
 
-    unirest.get('https://api.hotmess.social/alexa?zip=98102')
-        .headers({ 'Accept': 'application/javascript' })
+    unirest.get(`https://api.hotmess.social/alexa?zip=${zip}`)
+        .headers({ 'Accept': 'application/javascript',
+            'X-Device-Id': deviceId,
+            'X-User-Id': userId})
         .end(function(response) {
             if (response.body['events'].length === 0) {
                 alexaThis.emit(':tell', `There are no events in ${response.body['locale']}`);
@@ -115,6 +119,9 @@ let handlers = {
     },
     'GetHelp': function() {
         this.emit(':tell', this.t("HELP_MESSAGE"));
+    },
+    'GetFriends': function() {
+
     }
   };
 
