@@ -11,7 +11,8 @@
   "dependencies": {
     "alexa-sdk": "^1.0.8",
     "humanize": "0.0.9",
-    "unirest": "^0.5.1"
+    "unirest": "^0.5.1",
+    "xml-escape": "^1.1.0"
   },
   "devDependencies": {
     "grunt": "^1.0.1",

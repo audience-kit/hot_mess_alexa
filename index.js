@@ -1,6 +1,7 @@
 'use strict';
 
 let humanize = require('humanize');
+let XmlEscape = require('xml-escape');
 let Alexa = require('alexa-sdk');
 let unirest = require('unirest');
 let APP_ID = 'amzn1.ask.skill.3e6cdd1f-d05a-450d-b878-79335010dafa';
@@ -11,7 +12,7 @@ let languageStrings = {
     'en-US': {
         'translation': {
             'SKILL_NAME': 'Hot Mess',
-            'WELCOME_MESSAGE' : "Hot Mess is you're guide to local gay nightlife.  You can ask me whats going on and I'll find the next few events for you.",
+            'WELCOME_MESSAGE' : "Hot Mess is you're guide to local gay nightlife.  You can ask me whats going on and I'll find the next few events for you, or you can tell me you're going out and I'll let your friends know.  If you're friends have open pings, you can ask me where your friends are.",
             'WELCOME_REPROMPT': 'What can I look up?',
             'LOCATION_CONSENT': "In order to get events Hot Mess needs to know what city you live in.  Grant access to you're location in the Alexa app.",
             'HELP_MESSAGE': "Ask me what's going on and I'll look up the next few events near you. How can I help?",
@@ -41,8 +42,9 @@ function handleEventRequest(locale, timespan) {
     let deviceId = this.event.context.System.device.deviceId;
     let userId = this.event.context.System.user.userId;
 
-    console.log(`Performing Hot Mess call at /alexa/events (locale ${locale}, timespan ${timespan})`);
-    unirest.get(`${API_BASE}/alexa/events`)
+    let uri = `${API_BASE}/alexa/events`;
+    console.log(`Performing Hot Mess call at ${uri} (locale ${locale}, timespan ${timespan})`);
+    unirest.get(uri)
         .query({ locale: locale, timespan: parseTime(timespan) })
         .headers({
             'Authorization': `Bearer ${APP_KEY}`,
@@ -51,7 +53,7 @@ function handleEventRequest(locale, timespan) {
             'X-User-Id': userId
         })
         .end(function(response) {
-            console.log(`Hot Mess /alexa/events ${response.code}: ${JSON.stringify(response.body)}`);
+            console.log(`Hot Mess /alexa/events ${response.code}: ${response.body}`);
             if (response.body['events'].length === 0) {
                 alexaThis.emit(':tell', `There are no events in ${response.body['locale']}`);
             }
@@ -67,8 +69,10 @@ function handleEventRequest(locale, timespan) {
                     return `at ${start_at.toLocaleTimeString()}, ${item['title']} at ${item['venue']}`;
                 });
 
-                let output = `The next ${plural} in ${response.body['locale']} ${ordinal}: ${toSentence(statements)}.`;
-                alexaThis.emit(':tell', output);
+                let sentence = statements.length > 1 ? toSentence(statements) : statements[0];
+
+                let output = `The next ${plural} in ${response.body['locale']} ${ordinal}: ${sentence}.`;
+                alexaThis.emit(':tell', XmlEscape(output));
                 console.log(`Performed :tell - ${output}`);
             }
     });
@@ -140,23 +144,25 @@ let handlers = {
         var citySlot = this.event.request.intent.slots.city;
         var timeSlot = this.event.request.intent.slots.at_time;
 
+        let alexaThis = this;
+
         if (citySlot && citySlot.value) {
-            withLocale.call(this, function(locale) {
-                if (timeSlot && timeSlot.value) {
-                    handleEventRequest.call(this, locale, timeSlot.value);
-                }
-                else {
-                    handleEventRequest.call(this, locale, null);
-                }
-            });
-        }
-        else {
             if (timeSlot && timeSlot.value) {
-                handleEventRequest.call(this, citySlot.value, timeSlot.value);
+                handleEventRequest.bind(alexaThis)(citySlot.value, timeSlot.value);
             }
             else {
-                handleEventRequest.call(this, citySlot.value, null);
+                handleEventRequest.bind(alexaThis)(citySlot.value, null);
             }
+        }
+        else {
+            withLocale.bind(alexaThis)(function(locale) {
+                if (timeSlot && timeSlot.value) {
+                    handleEventRequest.bind(alexaThis)(locale, timeSlot.value);
+                }
+                else {
+                    handleEventRequest.bind(alexaThis)(locale, null);
+                }
+            });
         }
     },
     'GetFriends': function() {
@@ -166,37 +172,40 @@ let handlers = {
         let userId = this.event.context.System.user.userId;
 
         withAccount.call(this, function(accesstoken) {
-                console.log(`Performing Hot Mess call at /alexa/friends`);
-                unirest.get(`${API_BASE}/alexa/friends`)
-                    .headers({
-                        'Authorization': `JWT ${accesstoken}`,
-                        'Accept': 'application/javascript',
-                        'X-Device-Id': deviceId,
-                        'X-User-Id': userId
-                    })
-                    .end(function(response) {
-                        alexa.emit(':tell', alexa.t('NO_FRIENDS'));
-                    });
+            console.log(`Performing Hot Mess call at /alexa/friends`);
+            unirest.get(`${API_BASE}/alexa/friends`)
+                .headers({
+                    'Authorization': `JWT ${accesstoken}`,
+                    'Accept': 'application/javascript',
+                    'X-Device-Id': deviceId,
+                    'X-User-Id': userId
+                })
+                .end(function(response) {
+                    alexa.emit(':tell', alexa.t('NO_FRIENDS'));
+                });
         });
     },
     'CreatePing': function() {
-        let alexa = this;
+        let alexaThis = this;
 
         let deviceId = this.event.context.System.device.deviceId;
         let userId = this.event.context.System.user.userId;
 
-        withAccount.call(this, function(accesstoken) {
-            withLocale.call(this, function(locale){
+        withAccount.bind(alexaThis)(function(accessToken) {
+
+
+            withLocale.bind(alexaThis)(function(locale){
                 console.log(`Performing Hot Mess call at /alexa/friends`);
                 unirest.post(`${API_BASE}/alexa/ping`)
+                    .send({ locale: locale })
                     .headers({
-                        'Authorization': `JWT ${accesstoken}`,
+                        'Authorization': `JWT ${accessToken}`,
                         'Accept': 'application/javascript',
                         'X-Device-Id': deviceId,
                         'X-User-Id': userId
                     })
                     .end(function(response) {
-                        alexa.emit(':tell', alexa.t('PING_CREATED'));
+                        alexaThis.emit(':tell', alexaThis.t('PING_CREATED'));
                     });
             });
         });
