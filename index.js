@@ -18,6 +18,7 @@ let languageStrings = {
             'HELP_MESSAGE': "Ask me what's going on and I'll look up the next few events near you. How can I help?",
             'HELP_REPROMPT': "How can I help?",
             'PING_CREATED': "Ok, I've created a ping for you",
+            'SAFETY_PING_CREATED': "I'll let your circle know.  If this is an emergency please call 911 immediately.",
             'NO_FRIENDS': "I wasn't able to find any of your friends with an open ping.",
             'LINK_CONSENT': "In order to help you with your friends, you'll have to connect your Alexa to your Hot Mess account and in order for your friends to find you, you'll have to download Hot Mess from the App Store.  Open the Alexa app to finish signing in and connect with your friends."
         }
@@ -208,6 +209,26 @@ let handlers = {
                         alexaThis.emit(':tell', alexaThis.t('PING_CREATED'));
                     });
             });
+        });
+    },
+    'CreateSafetyPing': function() {
+        let alexaThis = this;
+
+        let deviceId = this.event.context.System.device.deviceId;
+        let userId = this.event.context.System.user.userId;
+
+        withAccount.bind(alexaThis)(function(accessToken) {
+            unirest.post(`${API_BASE}/alexa/ping`)
+                .send({ safety: true })
+                .headers({
+                    'Authorization': `JWT ${accessToken}`,
+                    'Accept': 'application/javascript',
+                    'X-Device-Id': deviceId,
+                    'X-User-Id': userId
+                })
+                .end(function(response) {
+                    alexaThis.emit(':tell', alexaThis.t('SAFETY_PING_CREATED'));
+                });
         });
     },
     'AMAZON.HelpIntent': function() {
